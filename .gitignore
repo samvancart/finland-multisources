@@ -1,0 +1,13 @@
+# R files
+*.Rproj
+.Rproj.user
+.Rhistory
+.RData*
+.Ruserdata
+*.rdata
+
+# Other files
+code_r.txt
+
+# Folders
+data/
