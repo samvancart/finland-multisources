@@ -38,12 +38,39 @@ joined <- joined[,c("id.x","id.y")]
 
 gc()
 
+# ids_sf <- head(ids_sf, n=1000)
 
-st_within(head(ids_sf, n = 10000000), joined)
+idxs <- st_nearest_feature(ids_sf, joined)
 
-ids_sf[7,]
+gc()
 
-joined_raster <- st_join(ids_sf,joined[which(joined$id.y==1),], join=st_within)
+rm(joined)
+gc()
+
+ids_sf <- as.data.table(ids_sf[,1])
+
+ids_sf$id_100m <- idxs
+
+rm(idxs)
+gc()
+
+path <- "data/multisources/csv/100m_1km_ids_m4.csv"
+
+ids_100_1 <- fread(path)
+
+ids_16_100_1 <- ids_sf[ids_100_1, on = c("id_100m")]
+
+rm(ids_16_100_1)
+gc()
+
+
+
+
+
+
+
+
+
 
 
 
