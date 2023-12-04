@@ -13,23 +13,25 @@ sf100 <- st_read(sf100_file)
 
 gc()
 
+# 100m and 1km centroids
 sf100 <- st_centroid(sf100)
 sf1 <- st_centroid(sf1)
 
 
-# 100m grid cells within 1km grid cell
-joined <- st_join(sf100,sf1, join=st_nearest_feature)
-
+# For each 100m point find nearest 1km point and join tables
+joined <- st_join(sf100, sf1, join=st_nearest_feature)
 
 rm(sf1,sf100)
 gc()
 
-# Ids and coords file
-filename_rdata <- "ids_m4.rdata"
-path_rdata <- paste0("data/rdata/2019/", filename_rdata)
+# Raster ids and coords file
+tile <- "m4"
+filename_rdata <- "dt_ids.rdata"
+path_rdata <- paste0("data/rdata/2019/", tile, "/", filename_rdata)
 
-# Load rdata
-load(path_rdata)
+
+# Read rdata
+dt_ids <- fread(path_rdata)
 
 gc()
 
@@ -39,73 +41,62 @@ joined <- joined[,c("id.x","id.y")]
 gc()
 
 
-coords <- as.data.table(st_coordinates(joined))
-joined <- as.data.table(joined)
-joined$x <- coords$X
-joined$y <- coords$Y
-joined <- joined[,c(1,2,4,5)]
-
-
-
-ids_head <- head(ids_m4, n=1000)
-
-ids_x <- ids_head$x
-ids_y <- ids_head$y
-
-j_x <- joined$x
-j_y <- joined$y
-
-# Transform to lat lons first
-idxs <- ids_head[, geoDistance := distHaversine(
-  matrix(c(ids_x, ids_y), ncol = 2), 
-  matrix(c(j_x, j_y), ncol = 2))]
-
-
-
-
-# ids_sf <- head(ids_sf, n=4500000)
-
-# ids_sf <- as.data.frame(ids_sf)
-
 # Get available cores
 cores <- parallelly::availableCores()
 
+gc()
 
-# Define libraries, sources and arguments needed for parallel procesing
+# ids_head <- head(ids_m4, n=nrow(ids_m4))
+
+# Rows to include for each splitID
+splitID_len <- ceiling(nrow(dt_ids)/cores)
+
+# SplitIDs as vector
+splitIDs <- head(rep(c(1:cores), each=splitID_len), n=nrow(dt_ids))
+
+# Assign splitIDs to table
+dt_ids[, splitID := splitIDs]
+
+rm(splitID_len, splitIDs)
+gc()
+
+# Fast split data table
+ids_dt_list <- split(dt_ids, by='splitID')
+
+rm(dt_ids)
+gc()
+
+# Drop splitID col from each data table chunk
+ids_dt_list <- lapply(ids_dt_list, function(x) x[, ('splitID') := NULL])
+
+# Cast each chunk to sf
+ids_sf_list <- lapply(ids_dt_list, st_as_sf, coords=c('x','y'), crs = st_crs(joined))
+
+rm(ids_dt_list)
+gc()
+
+# Define libraries, sources and arguments needed for parallel processing
 libs <- c("sf")
 sources <- c("./r/utils.R")
 fun_kwargs <- list(joined)
 
-# Split 10by10 sf for parallel processing
-ids_df_list <- do.call(split_df_equal, list(df = as.data.frame(ids_sf), n = cores))
-
-rm(ids_sf)
+rm(joined)
 gc()
 
-ids_sf_list <- lapply(ids_sf, st_as_sf)
-
-rm(ids_df_list)
-gc()
-
-# Get id idxs with nearest neighbour function
-# idxs <- st_nearest_feature(ids_sf, joined)
+# Get id indexes with nearest neighbour function
+# 8 cores seems to be faster even when 16 are available?!
 idxs <- unlist(get_in_parallel(ids_sf_list, fun = st_nearest_feature, cores = 8,
                                   libs = libs, sources = sources, fun_kwargs = fun_kwargs))
 
 
+rm(fun_kwargs, ids_sf_list)
 gc()
 
-rm(joined)
-gc()
-
-# Unlist
-ids_sf_list <- bind_rows(ids_sf_list)
-
-# groupIDs to data table
-ids_sf_list <- as.data.table(ids_sf[,1])
+# Load rdata again
+dt_ids <- fread(path_rdata)
 
 # Add 100m id column
-ids_sf_list$id_100m <- idxs
+dt_ids[, id_100m := idxs]
 
 rm(idxs)
 gc()
@@ -116,21 +107,26 @@ ids_100_1 <- fread(path)
 
 
 # Left inner join data tables
-# ids_16_100_1 <- ids_sf[ids_100_1, on=c("id_100m"), nomatch = 0]
-ids_16_100_1 <- left_join(ids_sf_list, ids_100_1, by = c("id_100m"))
+ids_16_100_1 <- left_join(dt_ids, ids_100_1, by = c("id_100m"))
 
 gc()
 
-
-
+# Test
 ids_16_100_1[6000]
 ids_100_1[id_100m==1296961]
-ids_sf_list[6000]
+dt_ids[6000]
+
+rm(dt_ids, ids_100_1)
+gc()
+
+ids_16_100_1[id_1km==1]
 
 
+# Write csv
+path <- "data/multisources/csv/16m_100m_1km_ids_m4.csv"
 
-
-
+# # Only include ids
+# fwrite(ids_16_100_1[,3:5], path, row.names = F)
 
 
 

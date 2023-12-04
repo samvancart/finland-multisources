@@ -1,44 +1,46 @@
 source("scripts/settings.R")
 
-filename_rdata <- "dt_m4.rdata"
-path_rdata <- paste0("data/rdata/2019/", filename_rdata)
+tile <- "m4"
+filename_rdata <- "dt.rdata"
+path_rdata <- paste0("data/rdata/2019/", tile, "/", filename_rdata)
 
 # Load rdata
-load(path_rdata)
+dt <- fread(path_rdata)
+
 
 # Rename columns
-colnames(dt_m4) <- c("x","y","biomass_spruce","biomass_bl","biomass_pine","age","fert","dbh","h","ba")
+colnames(dt) <- c("x","y","biomass_spruce","biomass_bl","biomass_pine","age","fert","dbh","h","ba")
 
 # Run garbage collection
 gc()
 
 # Total biomass
-dt_m4[, biomass_total := rowSums(.SD), .SDcols = 3:5]
+dt[, biomass_total := rowSums(.SD), .SDcols = 3:5]
 
 # Run garbage collection
 gc()
 
 # Biomass shares
-dt_m4[, biomass_spruce_share := biomass_spruce/biomass_total]
-dt_m4[, biomass_bl_share := biomass_bl/biomass_total]
-dt_m4[, biomass_pine_share := biomass_pine/biomass_total]
+dt[, biomass_spruce_share := biomass_spruce/biomass_total]
+dt[, biomass_bl_share := biomass_bl/biomass_total]
+dt[, biomass_pine_share := biomass_pine/biomass_total]
 
 # Run garbage collection
 gc()
 
 # Ba shares
-dt_m4[, ba_spruce_share := biomass_spruce_share*ba]
-dt_m4[, ba_bl_share := biomass_bl_share*ba]
-dt_m4[, ba_pine_share := biomass_pine_share*ba]
+dt[, ba_spruce_share := biomass_spruce_share*ba]
+dt[, ba_bl_share := biomass_bl_share*ba]
+dt[, ba_pine_share := biomass_pine_share*ba]
 
 # Run garbage collection
 gc()
 
 # Variable for processed table
-dt_m4_processed <- dt_m4
+dt_processed <- dt
 
 # Remove old var
-rm(dt_m4)
+rm(dt)
 
 # Run garbage collection
 gc()
@@ -47,31 +49,28 @@ gc()
 
 
 
-
+tile <- "m4"
 filename_rdata <- "dt_m4_processed.rdata"
-path_rdata <- paste0("data/rdata/2019/", filename_rdata)
-
-# # Save as rdata
-# save(dt_m4_processed, file = path_rdata)
+path_rdata <- paste0("data/rdata/2019/", tile, "/", filename_rdata)
 
 
 # Load rdata
-load(path_rdata)
+dt_processed <- fread(path_rdata)
 
 gc()
 
 # Assign group ids
-dt_m4_processed[, groupID := .GRP, by=list(x,y)]
+dt_processed[, groupID := .GRP, by=list(x,y)]
 
 
 gc()
 
 
 # Drop na rows
-comp_dt <- dt_m4_processed[complete.cases(dt_m4_processed),]
+comp_dt <- dt_processed[complete.cases(dt_processed),]
 
 
-rm(dt_m4_processed)
+rm(dt_processed)
 gc()
 
 
@@ -125,12 +124,12 @@ filtered <- unique(melted[,c("x", "y", "groupID")])
 rm(melted)
 gc()
 
-ids_m4 <- filtered
+dt_ids <- filtered
 
-# filename_rdata <- "ids_m4.rdata"
-# path_rdata <- paste0("data/rdata/2019/", filename_rdata)
-
-# save(ids_m4, file = path_rdata)
+tile <- "m4"
+filename_rdata <- "dt_ids.rdata"
+path_rdata <- paste0("data/rdata/2019/", tile, "/", filename_rdata)
+# fwrite(dt_ids,file=path_rdata, row.names = F)
 
 
 

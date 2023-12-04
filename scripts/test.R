@@ -31,3 +31,24 @@ filename_rdata <- "dt_m4.rdata"
 path_rdata <- paste0("data/rdata/2019/", filename_rdata)
 
 # save(dt_m4, file = path_rdata)
+
+
+
+
+file_ids_csv_m4 <- "data/multisources/csv/16m_100m_1km_ids_m4.csv"
+ids <- fread(file_ids_csv_m4)
+
+ids[id_100m==41296]
+
+id_1km_1<-sort(ids[id_100m==1924])
+
+length(id_1km_1)
+
+
+
+
+
+
+
+
+
