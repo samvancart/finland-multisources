@@ -1,5 +1,4 @@
 source("scripts/settings.R")
-source('./r/utils.R')
 source('./r/parallelProcess.R')
 
 
@@ -13,9 +12,11 @@ sf100 <- st_read(sf100_file)
 
 gc()
 
+
 # 100m and 1km centroids
-sf100 <- st_centroid(sf100)
 sf1 <- st_centroid(sf1)
+sf100 <- st_centroid(sf100)
+
 
 
 # For each 100m point find nearest 1km point and join tables
@@ -77,7 +78,6 @@ gc()
 
 # Define libraries, sources and arguments needed for parallel processing
 libs <- c("sf")
-sources <- c("./r/utils.R")
 fun_kwargs <- list(joined)
 
 rm(joined)
@@ -86,7 +86,7 @@ gc()
 # Get id indexes with nearest neighbour function
 # 8 cores seems to be faster even when 16 are available?!
 idxs <- unlist(get_in_parallel(ids_sf_list, fun = st_nearest_feature, cores = 8,
-                                  libs = libs, sources = sources, fun_kwargs = fun_kwargs))
+                                  libs = libs, fun_kwargs = fun_kwargs))
 
 
 rm(fun_kwargs, ids_sf_list)
@@ -123,7 +123,9 @@ ids_16_100_1[id_1km==1]
 
 
 # Write csv
-path <- "data/multisources/csv/16m_100m_1km_ids_m4.csv"
+tile <- "m4"
+filename <- "16m_100m_1km_ids_m4.csv"
+path <- paste0("data/multisources/csv/",tile,"/", filename)
 
 # # Only include ids
 # fwrite(ids_16_100_1[,3:5], path, row.names = F)

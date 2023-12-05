@@ -49,8 +49,10 @@ gc()
 
 
 
+
+
 tile <- "m4"
-filename_rdata <- "dt_m4_processed.rdata"
+filename_rdata <- "dt_processed.rdata"
 path_rdata <- paste0("data/rdata/2019/", tile, "/", filename_rdata)
 
 
@@ -83,10 +85,65 @@ rm(comp_dt)
 gc()
 
 
-# Remove cloud cover pixels
+# Remove cloud cover and other no value pixels
 cols_dt <- cols_dt[fert!=32766]
+cols_dt <- cols_dt[fert!=32767]
 
 gc()
+
+
+
+
+# # Write cols_dt
+# filename_cols_dt <- paste0("cols_dt_", tile, ".csv")
+# path_cols_dt <- paste0("data/multisources/csv/2019/", tile,"/", filename_cols_dt)
+# fwrite(cols_dt, file = path_cols_dt, row.names = F)
+
+
+# # REMOVE ALL VARIABLES: May not be necessary!
+# rm(list=ls())
+
+
+
+
+
+# ATTACH IDS HERE
+
+# dt_ids <- cols_dt[,c("x", "y", "groupID")]
+# 
+# rm(cols_dt)
+# gc()
+
+# Write ids and process in gridID.R
+
+############## PROCESS ##############
+
+
+# Read ids
+filename <- paste0("16m_100m_1km_ids_", tile, ".csv")
+path <- paste0("data/multisources/csv/2019/", tile,"/", filename)
+
+dt_16_100_1 <- fread(path)
+
+
+
+
+# # Read cols_dt
+# filename_cols_dt <- paste0("cols_dt_", tile, ".csv")
+# path_cols_dt <- paste0("data/multisources/csv/2019/", tile,"/", filename_cols_dt)
+# 
+# cols_dt <- fread(path_cols_dt)
+
+
+
+# Join ids
+cols_dt <- left_join(cols_dt, dt_16_100_1, by = c('groupID'))
+
+rm(dt_16_100_1)
+gc()
+
+
+
 
 # Melt
 melted <- melt.data.table(cols_dt, 
@@ -109,30 +166,57 @@ setorder(melted, cols="groupID")
 
 gc()
 
-# # Bl speciesID to 99
-# melted[speciesID==3, speciesID := 99]
-
-# gc()
 
 # Height from dm to m
 melted[, h := h/10]
 
 gc()
 
-filtered <- unique(melted[,c("x", "y", "groupID")])
-
-rm(melted)
-gc()
-
-dt_ids <- filtered
-
-tile <- "m4"
-filename_rdata <- "dt_ids.rdata"
-path_rdata <- paste0("data/rdata/2019/", tile, "/", filename_rdata)
-# fwrite(dt_ids,file=path_rdata, row.names = F)
 
 
+# FILTER CLEARCUTS HERE
 
+# Rows where height <= 1.5
+# SHOULD THIS BE <= OR < ??
+h_idxs <- which(melted$h <= 1.5)
+
+# Height to 1.5
+melted[h_idxs, h := 1.5]
+
+# Dbh to 1
+melted[h_idxs, dbh := 1]
+
+# Set ba initial state
+melted[h_idxs, ba := fifelse(speciesID > 2, 0.00863938, 0.01727876)]
+
+# Rows to remove because height > 1.5 & ba == 0
+h_ba_idxs <- which(melted$h > 1.5 & melted$ba==0)
+
+# Drop rows
+melted <- melted[!h_ba_idxs]
+
+
+# WHAT TO DO HERE??
+melted[dbh==0 | ba == 0]
+melted[h > 1.5 & dbh == 0]
+
+
+
+filename <- "dt_ids_all.csv"
+path_csv <- paste0("data/multisources/csv/2019/", tile, "/", filename)
+# fwrite(melted, file = path_csv, row.names = F)
+
+
+dt_ids_all <- fread(path_csv)
+
+
+
+
+
+
+# filename_rdata <- "dt_ids.rdata"
+# path_rdata <- paste0("data/rdata/2019/", tile, "/", filename_rdata)
+# # fwrite(dt_ids,file=path_rdata, row.names = F)
 
 
 
