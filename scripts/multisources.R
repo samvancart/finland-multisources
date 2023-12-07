@@ -47,7 +47,7 @@ gc()
 
 
 
-
+# DT PROCESSED
 
 
 
@@ -198,7 +198,7 @@ melted <- melted[!h_ba_idxs]
 
 # WHAT TO DO HERE??
 melted[dbh==0 | ba == 0]
-melted[h > 1.5 & dbh == 0]
+melted[h > 1.5 & ba == 0]
 
 
 
