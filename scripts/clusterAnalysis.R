@@ -3,6 +3,8 @@ source('./r/parallelProcess.R')
 source('./r/clusters.R')
 
 
+
+
 # Load sorted data
 tile <- "m4"
 filename <- "dt_ids_all.csv"
@@ -11,28 +13,39 @@ dt <- fread(path)
 
 gc()
 
-# dt[, c("x","y","age","fert","ba") := NULL]
 
-dt_1 <- dt[id_1km<=1]
+dt_1 <- dt[id_1km<=500 & speciesID==1]
 
+length(unique(dt$id_1km))
 
-dt_1[, c("x","y","age","fert","ba","id_1km") := NULL]
+dt_1[, c("x","y","age","fert","ba") := NULL]
+
 # Clustering group becomes groupID (id_100m in this case)
 setnames(dt_1, c("groupID", "id_100m"), c("id_16m", "groupID"))
 
-
 groups_vector <- unique(dt_1$groupID)
-cluster_cols <- c("dbh","h")
+
+cores <- parallelly::availableCores()
+
+# Get dt chunks
+dts <- get_chunked_dfs(dt_1, 16, dt_1$id_1km)
 
 
-which(dt_1$groupID==21162)
-dt_1[473995,]
+# Sources and libraries for parallel processing
+sources <- c('./r/clusters.R')
+libs <- c('data.table', 'factoextra')
 
-# Test chunks function
-chunked <- get_chunked_dfs(dt,16,dt$id_1km)
-dt1 <- chunked[[1]]
+gc()
 
-length(unique(dt1$id_1km))
+# Parallel process
+dts_c <- get_in_parallel(dts, get_clusters_dt, cores = cores, libs = libs, sources = sources)
+
+
+# Bind list
+dt_1 <- rbindlist(dts_c)
+
+
+
 
 # Test clustering with data table
 # Faster by using colnames as keys directly instead of in a variable as in .SD[, ..cluster_cols]
@@ -43,23 +56,41 @@ system.time(
 
 
 
-
-dt_c[groupID==1 & speciesID==1]
-dt_1[groupID==1 & speciesID==1]
-
-system.time(
-  clusterIDs_list <- get_clusterIDs_groups_species(dt_1, groups_vector, cluster_cols)
-)
+dt_1_base <- dt[id_1km<=10]
+setnames(dt_1, c("id_16m", "groupID"),c("groupID", "id_100m"))
+dt_joined <- left_join(dt_1_base, dt_1[,c(3,7)], by=c("groupID"))
 
 
 
-setequal(dt_1$clusterID,clusterIDs_list)
 
-dt_1$clusterID <- clusterIDs_list
 
-dt_1[groupID==1 & speciesID==3]
+# TEST THAT ALL SPECIES ARE IN RESULTS
+allSpeciesExist <- c()
+for(i in groups_vector) {
+  result <- setequal(unique(dt_joined[id_100m==i]$speciesID), c(1,2,3))
+  allSpeciesExist <- append(allSpeciesExist, result)
+}
 
-gc()
+# SHOULD BE integer(0)
+which(allSpeciesExist==F)
+
+# TEST THAT CLUSTERS ARE IDENTICAL
+speciesClustersIdentical <- c()
+for(i in groups_vector) {
+  sp1 <- dt_joined[id_100m==i & speciesID==1]$clusterID
+  sp2 <- dt_joined[id_100m==i & speciesID==2]$clusterID
+  sp3 <- dt_joined[id_100m==i & speciesID==3]$clusterID
+  
+  r1 <- setequal(sp1,sp2)
+  r2 <- setequal(sp1,sp3)
+  speciesClustersIdentical <- append(speciesClustersIdentical, fifelse(r1&r2,T,F))
+}
+# SHOULD BE integer(0)
+which(speciesClustersIdentical==F)
+
+
+
+
 
 
 
