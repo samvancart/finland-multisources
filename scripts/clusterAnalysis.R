@@ -13,10 +13,11 @@ dt <- fread(path)
 
 gc()
 
-
-dt_1 <- dt[id_1km<=500 & speciesID==1]
+dt_1 <- dt[id_1km<=2000 & speciesID==1]
 
 length(unique(dt$id_1km))
+
+
 
 dt_1[, c("x","y","age","fert","ba") := NULL]
 
@@ -45,6 +46,14 @@ dts_c <- get_in_parallel(dts, get_clusters_dt, cores = cores, libs = libs, sourc
 dt_1 <- rbindlist(dts_c)
 
 
+# Checks
+((nrow(dt[speciesID==1])/nrow(dt_1)) * (683/60))/60
+
+dt_1[944,]
+sort(unique(dt_1[id_1km==865 & groupID==92161]$clusterID))
+unique(dt_1$id_1km)
+length(unique(dt_1$id_1km))
+dt_1$clusterID
 
 
 # Test clustering with data table

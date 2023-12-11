@@ -8,8 +8,56 @@ path_rdata <- paste0("data/rdata/2019/", tile, "/", filename_rdata)
 dt <- fread(path_rdata)
 
 
+
+# CLEAN THIS UP
+
 # Rename columns
 colnames(dt) <- c("x","y","biomass_spruce","biomass_bl","biomass_pine","age","fert","dbh","h","ba")
+
+# siteXs <- sample(1:nrow(dt), 50000)
+# dt[siteXs,plot(h,dbh,pch=".")]
+
+# Height from dm to m
+dt[, h := h/10]
+
+dt$h <- as.double(dt$h)
+dt$dbh <- as.double(dt$dbh)
+dt$ba <- as.double(dt$ba)
+
+# Init values
+dt[h<13.1,h:=initSeedling.def[1]]
+dt[dbh<0.5,dbh:=initSeedling.def[2]]
+dt[ba==0,ba := initSeedling.def[3]]
+
+dt[, Ntot := ba/(pi*(dbh/200)^2)]
+
+dt <- dt[complete.cases(dt),]
+dt <- dt[fert!=32766]
+dt <- dt[fert!=32767]
+
+
+hist(dt$Ntot, breaks=seq(0,210000,100),xlim=c(0,5000))
+dt[Ntot>200000]
+
+dt[siteXs,plot(ba,h,pch=".")]
+dt[siteXs,plot(ba,dbh,pch=".")]
+
+
+# Linear model
+ba_dbh_rel <- lm(dt$ba~dt$dbh)
+dbh_h_rel <- lm(dt$h~dt$dbh)
+
+dbh_4 <- ba_dbh_rel$coefficients[1] + ba_dbh_rel$coefficients[2] * 4
+h_4 <- dbh_h_rel$coefficients[1] + ba_dbh_rel$coefficients[2] * dbh_4
+
+Ntot_4 <- 4/(pi*(dbh_4/200)^2)
+
+
+
+
+
+# # Rename columns
+# colnames(dt) <- c("x","y","biomass_spruce","biomass_bl","biomass_pine","age","fert","dbh","h","ba")
 
 # Run garbage collection
 gc()
@@ -167,8 +215,8 @@ setorder(melted, cols="groupID")
 gc()
 
 
-# Height from dm to m
-melted[, h := h/10]
+# # Height from dm to m
+# melted[, h := h/10]
 
 gc()
 
@@ -189,6 +237,12 @@ melted[h_idxs, dbh := 1]
 # Set ba initial state
 melted[h_idxs, ba := fifelse(speciesID > 2, 0.00863938, 0.01727876)]
 
+init_ba <- 0.01727876*2+0.00863938
+
+initSeedling.def
+
+
+
 # Rows to remove because height > 1.5 & ba == 0
 h_ba_idxs <- which(melted$h > 1.5 & melted$ba==0)
 
@@ -200,7 +254,17 @@ melted <- melted[!h_ba_idxs]
 melted[dbh==0 | ba == 0]
 melted[h > 1.5 & ba == 0]
 
+range(melted[dbh==0]$h)
 
+gc()
+
+# Get rows with < 3 species
+melted[, rows_removed := length(.SD$speciesID)<3, by=c("groupID")]
+rows_removed <- melted[rows_removed==T]
+rows_not_removed <- melted[rows_removed==F]
+length(unique(rows_removed$id_100m)) + length(unique(rows_not_removed$id_100m))
+
+length(unique(melted$id_100m))
 
 filename <- "dt_ids_all.csv"
 path_csv <- paste0("data/multisources/csv/2019/", tile, "/", filename)
