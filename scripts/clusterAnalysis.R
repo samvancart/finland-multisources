@@ -9,11 +9,16 @@ source('./r/clusters.R')
 tile <- "m4"
 filename <- "dt_ids_all.csv"
 path <- paste0("data/multisources/csv/2019/", tile, "/", filename)
+
 dt <- fread(path)
 
 gc()
 
-dt_1 <- dt[id_1km<=2000 & speciesID==1]
+ids_1km <- unique(dt$id_1km)
+sampled <- sample(ids_1km,1)
+
+dt_1 <- dt[id_1km==sampled]
+dt_1
 
 length(unique(dt$id_1km))
 
@@ -28,107 +33,41 @@ groups_vector <- unique(dt_1$groupID)
 
 cores <- parallelly::availableCores()
 
-# Get dt chunks
-dts <- get_chunked_dfs(dt_1, 16, dt_1$id_1km)
+# # Get dt chunks by id_1km
+# dts <- get_chunked_dfs(dt_1, 16, dt_1$id_1km)
 
+# Get dt chunks by speciesID
+dts <- split(dt_1, by=("speciesID"))
 
-# Sources and libraries for parallel processing
+# Sources, libraries and arguments for parallel processing
 sources <- c('./r/clusters.R')
 libs <- c('data.table', 'factoextra')
+fun_kwargs <- list(by=c("groupID","speciesID"))
 
 gc()
 
 # Parallel process
-dts_c <- get_in_parallel(dts, get_clusters_dt, cores = cores, libs = libs, sources = sources)
+dts_c <- get_in_parallel(dts, get_clusters_dt, cores = 3, libs = libs, sources = sources, fun_kwargs = fun_kwargs)
 
 
 # Bind list
 dt_1 <- rbindlist(dts_c)
 
-
-# Checks
-((nrow(dt[speciesID==1])/nrow(dt_1)) * (683/60))/60
-
-dt_1[944,]
-sort(unique(dt_1[id_1km==865 & groupID==92161]$clusterID))
-unique(dt_1$id_1km)
-length(unique(dt_1$id_1km))
-dt_1$clusterID
-
-
-# Test clustering with data table
-# Faster by using colnames as keys directly instead of in a variable as in .SD[, ..cluster_cols]
-# TRY IN PARALLEL
-system.time(
-  dt_1[, clusterID := kmeans(cbind(dbh,h), centers=get_centres(cbind(dbh,h), get_kmax(cbind(dbh,h))))$cluster, by=c("groupID","speciesID")]
-)
-
-
-
-dt_1_base <- dt[id_1km<=10]
+# Join clusterID column
+dt_1_base <- dt[id_1km==sampled]
 setnames(dt_1, c("id_16m", "groupID"),c("groupID", "id_100m"))
-dt_joined <- left_join(dt_1_base, dt_1[,c(3,7)], by=c("groupID"))
+dt_joined <- left_join(dt_1_base, dt_1[,c(3,6,7)], by=c("groupID","speciesID"))
+
+rm(dt_1_base,dt_1,dts,dts_c)
+gc()
+
+
+# Calculate dbh_cluster and h_cluster
+dt_joined[, dbh_cluster := mean(dbh), by=list(clusterID,speciesID)]
+dt_joined[, h_cluster := mean(h), by=list(clusterID,speciesID)]
 
 
 
-
-
-# TEST THAT ALL SPECIES ARE IN RESULTS
-allSpeciesExist <- c()
-for(i in groups_vector) {
-  result <- setequal(unique(dt_joined[id_100m==i]$speciesID), c(1,2,3))
-  allSpeciesExist <- append(allSpeciesExist, result)
-}
-
-# SHOULD BE integer(0)
-which(allSpeciesExist==F)
-
-# TEST THAT CLUSTERS ARE IDENTICAL
-speciesClustersIdentical <- c()
-for(i in groups_vector) {
-  sp1 <- dt_joined[id_100m==i & speciesID==1]$clusterID
-  sp2 <- dt_joined[id_100m==i & speciesID==2]$clusterID
-  sp3 <- dt_joined[id_100m==i & speciesID==3]$clusterID
-  
-  r1 <- setequal(sp1,sp2)
-  r2 <- setequal(sp1,sp3)
-  speciesClustersIdentical <- append(speciesClustersIdentical, fifelse(r1&r2,T,F))
-}
-# SHOULD BE integer(0)
-which(speciesClustersIdentical==F)
-
-
-
-
-
-
-
-
-
-# Get number of available cores
-cores <- detectCores(logical=T)
-
-# Get all groupIDs
-ids <- df$groupID
-
-# Get chunked dfs
-dfs <- get_chunked_dfs(df = df, max_chunk_size = cores, ids = ids)
-
-# Number of chunks = Number of cores to use
-chunks <- length(dfs)
-
-
-# Get clusterIDs vector with parallel processing
-
-
-# Combine clusterIDs from all runs
-clusterIDs_list <- Reduce(append, clusterIDs_lists, c())
-
-# Add clusterIDs to df
-df$clusterID <- clusterIDs_list
-
-# Sort by group then species then cluster
-df_sorted <- df[with(df,order(df$groupID,df$speciesID,df$clusterID)),]
 
 
 

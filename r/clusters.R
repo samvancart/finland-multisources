@@ -122,13 +122,16 @@ get_clusterIDs_groups_species <- function(df, groups_vector, cluster_cols=c("Dbh
 
 
 
-get_clusters_dt <- function(dt){
-  dt[, clusterID := kmeans(cbind(dbh,h), centers=get_centres(cbind(dbh,h), get_kmax(cbind(dbh,h))))$cluster, by=c("groupID","speciesID")]
+get_clusters_dt <- function(dt,by=c("groupID")){
+  dt[, clusterID := kmeans(cbind(dbh,h), centers=get_centres(cbind(dbh,h), get_kmax(cbind(dbh,h))), nstart = 25, iter.max = 50)$cluster, by=by]
   return(dt)
 }
 
 
-
+get_clusters_dt_min_requirements <- function(dt){
+  dt[, clusterID := kmeans(cbind(dbh,h), centers=get_centres(cbind(dbh,h), get_kmax(cbind(dbh,h))))$cluster, by=c("groupID","speciesID")]
+  return(dt)
+}
 
 
 

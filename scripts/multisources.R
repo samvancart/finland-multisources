@@ -1,5 +1,8 @@
 source("scripts/settings.R")
 
+
+
+# Set tile and paths
 tile <- "m4"
 filename_rdata <- "dt.rdata"
 path_rdata <- paste0("data/rdata/2019/", tile, "/", filename_rdata)
@@ -7,60 +10,19 @@ path_rdata <- paste0("data/rdata/2019/", tile, "/", filename_rdata)
 # Load rdata
 dt <- fread(path_rdata)
 
-
-
-# CLEAN THIS UP
-
 # Rename columns
 colnames(dt) <- c("x","y","biomass_spruce","biomass_bl","biomass_pine","age","fert","dbh","h","ba")
 
-# siteXs <- sample(1:nrow(dt), 50000)
-# dt[siteXs,plot(h,dbh,pch=".")]
+# Assign group ids
+dt[, groupID := .GRP, by=list(x,y)]
 
-# Height from dm to m
-dt[, h := h/10]
-
-dt$h <- as.double(dt$h)
-dt$dbh <- as.double(dt$dbh)
-dt$ba <- as.double(dt$ba)
-
-# Init values
-dt[h<13.1,h:=initSeedling.def[1]]
-dt[dbh<0.5,dbh:=initSeedling.def[2]]
-dt[ba==0,ba := initSeedling.def[3]]
-
-dt[, Ntot := ba/(pi*(dbh/200)^2)]
-
+# Remove NAs
 dt <- dt[complete.cases(dt),]
+
+# # Remove cloud cover and other no value pixels
 dt <- dt[fert!=32766]
 dt <- dt[fert!=32767]
 
-
-hist(dt$Ntot, breaks=seq(0,210000,100),xlim=c(0,5000))
-dt[Ntot>200000]
-
-dt[siteXs,plot(ba,h,pch=".")]
-dt[siteXs,plot(ba,dbh,pch=".")]
-
-
-# Linear model
-ba_dbh_rel <- lm(dt$ba~dt$dbh)
-dbh_h_rel <- lm(dt$h~dt$dbh)
-
-dbh_4 <- ba_dbh_rel$coefficients[1] + ba_dbh_rel$coefficients[2] * 4
-h_4 <- dbh_h_rel$coefficients[1] + ba_dbh_rel$coefficients[2] * dbh_4
-
-Ntot_4 <- 4/(pi*(dbh_4/200)^2)
-
-
-
-
-
-# # Rename columns
-# colnames(dt) <- c("x","y","biomass_spruce","biomass_bl","biomass_pine","age","fert","dbh","h","ba")
-
-# Run garbage collection
-gc()
 
 # Total biomass
 dt[, biomass_total := rowSums(.SD), .SDcols = 3:5]
@@ -68,13 +30,87 @@ dt[, biomass_total := rowSums(.SD), .SDcols = 3:5]
 # Run garbage collection
 gc()
 
-# Biomass shares
-dt[, biomass_spruce_share := biomass_spruce/biomass_total]
-dt[, biomass_bl_share := biomass_bl/biomass_total]
-dt[, biomass_pine_share := biomass_pine/biomass_total]
 
-# Run garbage collection
+
+# Biomass shares. If total biomass is 0 then pine and spruce are 0.4 and birch is 0.2
+dt[, biomass_pine_share := fifelse(biomass_total == 0, 0.4, biomass_pine/biomass_total)]
+dt[, biomass_spruce_share := fifelse(biomass_total == 0, 0.4, biomass_spruce/biomass_total)]
+dt[, biomass_bl_share := fifelse(biomass_total == 0, 0.2, biomass_bl/biomass_total)]
+
+
+# CLEARCUTS
+
+
+# Height from dm to m
+dt[, h := h/10]
+
+# Convert cols to double
+dt$h <- as.double(dt$h)
+dt$dbh <- as.double(dt$dbh)
+dt$ba <- as.double(dt$ba)
+
+# Init values
+init_h <- initSeedling.def[1]
+init_dbh <- initSeedling.def[2]
+init_ba <- initSeedling.def[3]
+
+# Init values when ba is 0
+dt[ba == 0, h := init_h]
+dt[ba == 0, dbh := init_dbh]
+dt[ba == 0, ba := init_ba]
+
 gc()
+
+
+# LINEAR MODELS
+
+# BA AND DBH
+
+# Linear relationship between ba and dbh
+ba_dbh_rel <- lm(dt$dbh~dt$ba)
+ba_dbh_coef_1 <- ba_dbh_rel$coefficients[1]
+ba_dbh_coef_2 <- ba_dbh_rel$coefficients[2]
+
+# Rm model
+rm(ba_dbh_rel)
+gc()
+
+# Set init dbh when value < 0.5
+dt[dbh < 0.5, dbh := ba_dbh_coef_1+ba_dbh_coef_2*ba]
+
+# Rm coeffs
+rm(ba_dbh_coef_1, ba_dbh_coef_2)
+gc()
+
+
+# H AND DBH
+
+# Linear relationship between dbh and h
+dbh_h_rel <- lm(dt$h~dt$dbh)
+dbh_h_coef_1 <- dbh_h_rel$coefficients[1]
+dbh_h_coef_2 <- dbh_h_rel$coefficients[2]
+
+# Rm model
+rm(dbh_h_rel)
+gc()
+
+# Set init dbh when value < 0.5
+dt[h < 1.31, h := dbh_h_coef_1 + dbh_h_coef_2 * dbh]
+
+# Rm coeffs
+rm(dbh_h_coef_1, dbh_h_coef_2)
+gc()
+
+
+# Calculate total number of trees
+dt[, Ntot := ba/(pi*(dbh/200)^2)]
+
+gc()
+
+
+range(dt$Ntot)
+dt[Ntot>20000]
+
 
 # Ba shares
 dt[, ba_spruce_share := biomass_spruce_share*ba]
@@ -84,61 +120,17 @@ dt[, ba_pine_share := biomass_pine_share*ba]
 # Run garbage collection
 gc()
 
-# Variable for processed table
-dt_processed <- dt
-
-# Remove old var
-rm(dt)
-
-# Run garbage collection
-gc()
 
 
 
-# DT PROCESSED
-
-
-
-tile <- "m4"
-filename_rdata <- "dt_processed.rdata"
-path_rdata <- paste0("data/rdata/2019/", tile, "/", filename_rdata)
-
-
-# Load rdata
-dt_processed <- fread(path_rdata)
-
-gc()
-
-# Assign group ids
-dt_processed[, groupID := .GRP, by=list(x,y)]
-
-
-gc()
-
-
-# Drop na rows
-comp_dt <- dt_processed[complete.cases(dt_processed),]
-
-
-rm(dt_processed)
-gc()
-
-
+# Columns to keep
 keep_cols <- c("x","y","age","fert","dbh","h","ba_spruce_share","ba_bl_share","ba_pine_share","groupID")
 
 # Drop unnecessary cols
-cols_dt <- comp_dt[, ..keep_cols]
+cols_dt <- dt[, ..keep_cols]
 
-rm(comp_dt)
+rm(dt)
 gc()
-
-
-# Remove cloud cover and other no value pixels
-cols_dt <- cols_dt[fert!=32766]
-cols_dt <- cols_dt[fert!=32767]
-
-gc()
-
 
 
 
@@ -215,61 +207,19 @@ setorder(melted, cols="groupID")
 gc()
 
 
-# # Height from dm to m
-# melted[, h := h/10]
+melted <- melted[ba!=0]
 
 gc()
 
 
 
-# FILTER CLEARCUTS HERE
-
-# Rows where height <= 1.5
-# SHOULD THIS BE <= OR < ??
-h_idxs <- which(melted$h <= 1.5)
-
-# Height to 1.5
-melted[h_idxs, h := 1.5]
-
-# Dbh to 1
-melted[h_idxs, dbh := 1]
-
-# Set ba initial state
-melted[h_idxs, ba := fifelse(speciesID > 2, 0.00863938, 0.01727876)]
-
-init_ba <- 0.01727876*2+0.00863938
-
-initSeedling.def
-
-
-
-# Rows to remove because height > 1.5 & ba == 0
-h_ba_idxs <- which(melted$h > 1.5 & melted$ba==0)
-
-# Drop rows
-melted <- melted[!h_ba_idxs]
-
-
-# WHAT TO DO HERE??
-melted[dbh==0 | ba == 0]
-melted[h > 1.5 & ba == 0]
-
-range(melted[dbh==0]$h)
-
-gc()
-
-# Get rows with < 3 species
-melted[, rows_removed := length(.SD$speciesID)<3, by=c("groupID")]
-rows_removed <- melted[rows_removed==T]
-rows_not_removed <- melted[rows_removed==F]
-length(unique(rows_removed$id_100m)) + length(unique(rows_not_removed$id_100m))
-
-length(unique(melted$id_100m))
 
 filename <- "dt_ids_all.csv"
 path_csv <- paste0("data/multisources/csv/2019/", tile, "/", filename)
-# fwrite(melted, file = path_csv, row.names = F)
+fwrite(melted, file = path_csv, row.names = F)
 
+rm(melted)
+gc()
 
 dt_ids_all <- fread(path_csv)
 
@@ -278,9 +228,6 @@ dt_ids_all <- fread(path_csv)
 
 
 
-# filename_rdata <- "dt_ids.rdata"
-# path_rdata <- paste0("data/rdata/2019/", tile, "/", filename_rdata)
-# # fwrite(dt_ids,file=path_rdata, row.names = F)
 
 
 
@@ -289,34 +236,35 @@ dt_ids_all <- fread(path_csv)
 
 
 
-sites <- melted[groupID<22]
 
-rm(melted)
-gc()
-
-
-nSites <- length(unique(sites$groupID))
-nLayers <- (sites %>% count(groupID))$n
-nSpecies <- (sites %>% count(speciesID,groupID) %>% count(groupID))$n
-
-siteInfo[,8] <- nLayers
-siteInfo[,9] <- nSpecies
-
-maxNlayers <- max(nLayers)
-
-
-
-multiInitVar <- array(0,dim=c(nSites,7,maxNlayers))
-multiInitVar[,6:7,NA]
-for(i in 1:nSites){
-  filtered <- sites %>% filter(groupID==i)
-  multiInitVar[i,1,1:nLayers[i]] <- filtered$speciesID # vector of species ID taken from data
-  multiInitVar[i,2,1:nLayers[i]] <- filtered$age # age by tree from NFI
-  multiInitVar[i,3,1:nLayers[i]] <- filtered$h # height from NFI data
-  multiInitVar[i,4,1:nLayers[i]] <- filtered$dbh # dbh from NFI data
-  multiInitVar[i,5,1:nLayers[i]] <- filtered$ba # you need to calculate the basal area: pi*(dbh/200)^2*"multiplier Ntrees in data"
-  multiInitVar[i,6,1:nLayers[i]] <- NA
-}
+# sites <- melted[groupID<22]
+# 
+# rm(melted)
+# gc()
+# 
+# 
+# nSites <- length(unique(sites$groupID))
+# nLayers <- (sites %>% count(groupID))$n
+# nSpecies <- (sites %>% count(speciesID,groupID) %>% count(groupID))$n
+# 
+# siteInfo[,8] <- nLayers
+# siteInfo[,9] <- nSpecies
+# 
+# maxNlayers <- max(nLayers)
+# 
+# 
+# 
+# multiInitVar <- array(0,dim=c(nSites,7,maxNlayers))
+# multiInitVar[,6:7,NA]
+# for(i in 1:nSites){
+#   filtered <- sites %>% filter(groupID==i)
+#   multiInitVar[i,1,1:nLayers[i]] <- filtered$speciesID # vector of species ID taken from data
+#   multiInitVar[i,2,1:nLayers[i]] <- filtered$age # age by tree from NFI
+#   multiInitVar[i,3,1:nLayers[i]] <- filtered$h # height from NFI data
+#   multiInitVar[i,4,1:nLayers[i]] <- filtered$dbh # dbh from NFI data
+#   multiInitVar[i,5,1:nLayers[i]] <- filtered$ba # you need to calculate the basal area: pi*(dbh/200)^2*"multiplier Ntrees in data"
+#   multiInitVar[i,6,1:nLayers[i]] <- NA
+# }
 
 
 
