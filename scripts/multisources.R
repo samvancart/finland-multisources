@@ -44,7 +44,7 @@ dt[, biomass_bl_share := fifelse(biomass_total == 0, 0.2, biomass_bl/biomass_tot
 # Height from dm to m
 dt[, h := h/10]
 
-# Convert cols to double
+# Convert h, dbh and ba to double
 dt$h <- as.double(dt$h)
 dt$dbh <- as.double(dt$dbh)
 dt$ba <- as.double(dt$ba)
@@ -54,17 +54,19 @@ init_h <- initSeedling.def[1]
 init_dbh <- initSeedling.def[2]
 init_ba <- initSeedling.def[3]
 
+
 # Init values when ba is 0
-dt[ba == 0, h := init_h]
-dt[ba == 0, dbh := init_dbh]
-dt[ba == 0, ba := init_ba]
+dt[ba == 0, c("h", "dbh", "ba") := list(init_h, init_dbh, init_ba)]
+
 
 gc()
 
 
-# LINEAR MODELS
 
-# BA AND DBH
+# COEFFS AT START!!
+
+
+# LINEAR MODELS
 
 # Linear relationship between ba and dbh
 ba_dbh_rel <- lm(dt$dbh~dt$ba)
@@ -74,16 +76,6 @@ ba_dbh_coef_2 <- ba_dbh_rel$coefficients[2]
 # Rm model
 rm(ba_dbh_rel)
 gc()
-
-# Set init dbh when value < 0.5
-dt[dbh < 0.5, dbh := ba_dbh_coef_1+ba_dbh_coef_2*ba]
-
-# Rm coeffs
-rm(ba_dbh_coef_1, ba_dbh_coef_2)
-gc()
-
-
-# H AND DBH
 
 # Linear relationship between dbh and h
 dbh_h_rel <- lm(dt$h~dt$dbh)
@@ -95,36 +87,31 @@ rm(dbh_h_rel)
 gc()
 
 # Set init dbh when value < 0.5
+dt[dbh < 0.5, dbh :=  ba_dbh_coef_1+ba_dbh_coef_2*ba]
+
+# Set init h when value < 1.31
 dt[h < 1.31, h := dbh_h_coef_1 + dbh_h_coef_2 * dbh]
 
 # Rm coeffs
-rm(dbh_h_coef_1, dbh_h_coef_2)
+rm(ba_dbh_coef_1, ba_dbh_coef_2, dbh_h_coef_1, dbh_h_coef_2)
 gc()
 
 
 # Calculate total number of trees
 dt[, Ntot := ba/(pi*(dbh/200)^2)]
 
-gc()
 
-
-range(dt$Ntot)
-dt[Ntot>20000]
-
-
-# Ba shares
-dt[, ba_spruce_share := biomass_spruce_share*ba]
-dt[, ba_bl_share := biomass_bl_share*ba]
-dt[, ba_pine_share := biomass_pine_share*ba]
+# Basal areas
+dt[, ba_pine := biomass_pine_share*ba]
+dt[, ba_spruce := biomass_spruce_share*ba]
+dt[, ba_bl := biomass_bl_share*ba]
 
 # Run garbage collection
 gc()
 
 
-
-
 # Columns to keep
-keep_cols <- c("x","y","age","fert","dbh","h","ba_spruce_share","ba_bl_share","ba_pine_share","groupID")
+keep_cols <- c("x","y","age","fert","dbh","h","ba_pine","ba_spruce","ba_bl","groupID")
 
 # Drop unnecessary cols
 cols_dt <- dt[, ..keep_cols]
@@ -154,6 +141,11 @@ gc()
 # rm(cols_dt)
 # gc()
 
+# tile <- "m4"
+# filename_rdata <- "dt_ids_test.rdata"
+# path_rdata <- paste0("data/rdata/2019/", tile, "/", filename_rdata)
+# fwrite(dt_ids,path_rdata)
+
 # Write ids and process in gridID.R
 
 ############## PROCESS ##############
@@ -164,8 +156,6 @@ filename <- paste0("16m_100m_1km_ids_", tile, ".csv")
 path <- paste0("data/multisources/csv/2019/", tile,"/", filename)
 
 dt_16_100_1 <- fread(path)
-
-
 
 
 # # Read cols_dt
@@ -187,7 +177,7 @@ gc()
 
 # Melt
 melted <- melt.data.table(cols_dt, 
-                             measure.vars = c("ba_pine_share","ba_spruce_share", "ba_bl_share"), value.name = "ba")
+                             measure.vars = c("ba_pine", "ba_spruce", "ba_bl"), value.name = "ba")
 
 rm(cols_dt)
 gc()
@@ -213,10 +203,9 @@ gc()
 
 
 
-
 filename <- "dt_ids_all.csv"
 path_csv <- paste0("data/multisources/csv/2019/", tile, "/", filename)
-fwrite(melted, file = path_csv, row.names = F)
+# fwrite(melted, file = path_csv, row.names = F)
 
 rm(melted)
 gc()

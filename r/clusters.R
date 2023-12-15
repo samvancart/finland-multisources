@@ -12,7 +12,7 @@
 # Functions
 
 # Divide data frame into chunks. First divides df into equal chunks based on number of rows.
-# Actual chunks are determined by parameter 'ids' values. Each unique id will belong to same chunk.
+# Actual chunks are determined by parameter 'ids' values. All rows with the same id will belong to the same chunk.
 # Data frame must be sorted by 'ids' prior to running.
 # Params:
 # df (data.frame): The original data frame sorted by 'ids'.
@@ -62,10 +62,18 @@ get_centres <- function(df, kmax) {
 
 
 # Kmax for optimising number of clusters
-get_kmax <- function(df) {
+#' Title
+#'
+#' @param df 
+#'
+#' @return
+#' @export
+#'
+#' @examples
+get_kmax <- function(df, max_k=Inf) {
   
   if(nrow(unique(df))>2) {
-    kmax <- nrow(unique(df))-1
+    kmax <- min(max_k, nrow(unique(df))-1)
   } else {
     kmax <- 2
   }
@@ -122,12 +130,12 @@ get_clusterIDs_groups_species <- function(df, groups_vector, cluster_cols=c("Dbh
 
 
 
-get_clusters_dt <- function(dt,by=c("groupID")){
-  dt[, clusterID := kmeans(cbind(dbh,h), centers=get_centres(cbind(dbh,h), get_kmax(cbind(dbh,h))), nstart = 25, iter.max = 50)$cluster, by=by]
+get_clusters_dt <- function(dt, by=c("groupID"), max_k=Inf){
+  dt[, clusterID := kmeans(cbind(dbh,h), centers=get_centres(cbind(dbh,h), get_kmax(df = cbind(dbh,h), max_k = max_k)), nstart = 25, iter.max = 50)$cluster, by=by]
   return(dt)
 }
 
-
+# MODIFY AS REQUIRED
 get_clusters_dt_min_requirements <- function(dt){
   dt[, clusterID := kmeans(cbind(dbh,h), centers=get_centres(cbind(dbh,h), get_kmax(cbind(dbh,h))))$cluster, by=c("groupID","speciesID")]
   return(dt)
