@@ -16,6 +16,27 @@ colnames(dt) <- c("x","y","biomass_spruce","biomass_bl","biomass_pine","age","fe
 # Assign group ids
 dt[, groupID := .GRP, by=list(x,y)]
 
+# Determine which rows represent forested pixels
+dt[, forest_pixel := fifelse(!complete.cases(dt) | fert==32766 | fert==32767, F, T)]
+
+# Join ids
+filename <- paste0("16m_100m_1km_ids_all_pixels_", tile, ".csv")
+path <- paste0("data/multisources/csv/2019/", tile,"/", filename)
+ids <- fread(path)
+dt <- as.data.table(left_join(dt, ids, by = c('groupID')))
+rm(ids)
+gc()
+
+dt[, .(count = .N, forested = sum(forest_pixel==T)), by = c("id_100m")]
+
+# Add forest cover percentage column
+dt[, forest_cover := .(forest_cover = (sum(forest_pixel==T)/.N)*100), by = c("id_100m")]
+
+
+
+
+
+
 # Remove NAs
 dt <- dt[complete.cases(dt),]
 
@@ -140,6 +161,9 @@ gc()
 # 
 # rm(cols_dt)
 # gc()
+
+
+# dt_ids <- dt[,c("x", "y", "groupID")]
 
 # tile <- "m4"
 # filename_rdata <- "dt_ids_test.rdata"

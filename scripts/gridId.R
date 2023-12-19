@@ -86,7 +86,7 @@ gc()
 
 # Get id indexes with nearest neighbour function
 # 8 cores seems to be faster even when 16 are available?!
-idxs <- unlist(get_in_parallel(ids_sf_list, fun = st_nearest_feature, cores = 8,
+idxs <- unlist(get_in_parallel(ids_sf_list, fun = st_nearest_feature, cores = cores,
                                   libs = libs, fun_kwargs = fun_kwargs))
 
 
@@ -103,18 +103,18 @@ rm(idxs)
 gc()
 
 # Read ids lookup table
-path <- "data/multisources/csv/100m_1km_ids_m4.csv"
+path <- "data/multisources/csv/2019/m4/100m_1km_ids_m4.csv"
 ids_100_1 <- fread(path)
 
 
 # Left inner join data tables
-ids_16_100_1 <- left_join(dt_ids, ids_100_1, by = c("id_100m"))
+ids_16_100_1 <- as.data.table(left_join(dt_ids, ids_100_1, by = c("id_100m")))
 
 gc()
 
 # Test
 ids_16_100_1[6000]
-ids_100_1[id_100m==1296961]
+ids_100_1[id_100m==920641]
 dt_ids[6000]
 
 rm(dt_ids, ids_100_1)
@@ -125,8 +125,8 @@ ids_16_100_1[id_1km==1]
 
 # Write csv
 tile <- "m4"
-filename <- "16m_100m_1km_ids_m4.csv"
-path <- paste0("data/multisources/csv/",tile,"/", filename)
+filename <- "16m_100m_1km_ids_m4_all_pixels.csv"
+path <- paste0("data/multisources/csv/2019/",tile,"/", filename)
 
 # # Only include ids
 # fwrite(ids_16_100_1[,3:5], path, row.names = F)
